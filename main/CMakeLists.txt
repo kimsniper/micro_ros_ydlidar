@@ -1,3 +1,3 @@
-idf_component_register(SRCS main.cpp  imu_node.cpp imu_ekf.cpp
+idf_component_register(SRCS main.cpp  ydlidar_node.cpp
                     INCLUDE_DIRS "." "../components"
                     )

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Mezael Docoy
+ * Copyright (c) 2026, Mezael Docoy
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,38 +29,37 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MPU6050_HAL_HPP
-#define MPU6050_HAL_HPP
+#pragma once
 
 #include <cstdint>
-#include "mpu6050_types.hpp"
 
-/* Hardware Specific Components */
-extern "C" {
-#include "driver/i2c.h"
-#include "esp_err.h"
-}
+namespace YDLIDAR {
 
-/* I2C User Defines */
-#define I2C_MASTER_SCL_IO           CONFIG_I2C_MASTER_SCL      /*!< GPIO number used for I2C master clock */
-#define I2C_MASTER_SDA_IO           CONFIG_I2C_MASTER_SDA      /*!< GPIO number used for I2C master data  */
-#define I2C_MASTER_NUM              0                          /*!< I2C master i2c port number, the number of i2c peripheral interfaces available will depend on the chip */
-#define I2C_MASTER_FREQ_HZ          100000                     /*!< I2C master clock frequency */
-#define I2C_MASTER_TX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
-#define I2C_MASTER_RX_BUF_DISABLE   0                          /*!< I2C master doesn't need buffer */
-#define I2C_MASTER_TIMEOUT_MS       1000
+enum class LidarError_t {
+    LIDAR_OK = 0,
+    LIDAR_ERR = -1,
+    LIDAR_ERR_CHECKSUM = -2,
+    LIDAR_ERR_TIMEOUT = -3
+};
 
-#ifdef __cplusplus
-extern "C" {
+enum class LidarModel_t {
+    TRIANGLE_LIDAR,
+    TOF_LIDAR
+};
+
+struct Device {
+    uint8_t uartPort;
+    int txPin;
+    int rxPin;
+    uint32_t baudRate;
+};
+
+struct Config {
+    LidarModel_t model;
+    bool hasIntensity;
+    uint16_t maxPointsPerTurn;
+};
+
+} // namespace YDLIDAR
+
 #endif
-
-Mpu6050_Error_t mpu6050_hal_init(uint8_t pI2cPort);
-Mpu6050_Error_t mpu6050_i2c_hal_read(const uint8_t address, uint8_t pI2cPort, uint8_t* reg, uint8_t* pRxBuffer, const uint16_t count);
-Mpu6050_Error_t mpu6050_i2c_hal_write(const uint8_t address, uint8_t pI2cPort, uint8_t* pTxBuffer, const uint16_t count);
-void mpu6050_i2c_hal_ms_delay(uint32_t ms);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif  // MPU6050_HAL_HPP

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Mezael Docoy
+ * Copyright (c) 2026, Mezael Docoy
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,12 +29,24 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef MPU6050_TYPES_HPP
-#define MPU6050_TYPES_HPP
+#pragma once
 
-enum class Mpu6050_Error_t {
-    MPU6050_OK = 0,
-    MPU6050_ERR = -1
-};
+#include <cstdint>
+#include "ydlidar_types.hpp"
 
-#endif // MPU6050_TYPES_HPP
+extern "C" {
+#include "driver/uart.h"
+#include "esp_err.h"
+}
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+YDLIDAR::LidarError_t ydlidar_hal_init(const YDLIDAR::Device* dev);
+YDLIDAR::LidarError_t ydlidar_hal_read_byte(uint8_t uartPort, uint8_t* byteBuffer, uint32_t timeoutMs);
+void ydlidar_hal_ms_delay(uint32_t ms);
+
+#ifdef __cplusplus
+}
+#endif

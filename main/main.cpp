@@ -48,7 +48,7 @@
 #include <rmw_microros/rmw_microros.h>
 #endif
 
-#include "imu_node.hpp"
+#include "ydlidar_node.hpp"
 
 #define DOMAIN_ID 0
 
@@ -59,16 +59,14 @@
     } \
 } while(0)
 
-class ImuNodeTask {
+class YdLidarNodeTask {
 public:
-    rcl_node_t node;
     rclc_support_t support;
     rcl_allocator_t allocator;
 
-    ImuNode imu;
+    YdLidarNode lidarNodeInstance;
 
-    void init()
-    {
+    void init() {
         allocator = rcl_get_default_allocator();
 
         rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
@@ -76,9 +74,7 @@ public:
         RCCHECK(rcl_init_options_set_domain_id(&init_options, DOMAIN_ID));
 
 #ifdef CONFIG_MICRO_ROS_ESP_XRCE_DDS_MIDDLEWARE
-        rmw_init_options_t * rmw_options =
-            rcl_init_options_get_rmw_init_options(&init_options);
-
+        rmw_init_options_t * rmw_options = rcl_init_options_get_rmw_init_options(&init_options);
         RCCHECK(rmw_uros_options_set_udp_address(
             CONFIG_MICRO_ROS_AGENT_IP,
             CONFIG_MICRO_ROS_AGENT_PORT,
@@ -94,24 +90,27 @@ public:
             &allocator
         ));
 
-        imu.init(&support, &allocator);
-    }
-
-    void spin()
-    {
-        imu.spin();
+        lidarNodeInstance.init(&support, &allocator);
     }
 };
 
-void micro_ros_task(void * arg)
-{
-    ImuNodeTask app;
-    app.init();
-    app.spin();
+void lidar_worker_task(void * arg) {
+    YdLidarNodeTask* app = static_cast<YdLidarNodeTask*>(arg);
+    app->lidarNodeInstance.spin();
 }
 
-extern "C" void app_main(void)
-{
+void micro_ros_task(void * arg) {
+    static YdLidarNodeTask app;
+    app.init();
+
+    xTaskCreatePinnedToCore(lidar_worker_task, "lidar_spin_task", 4096, &app, 5, NULL, 0);
+
+    while(true) {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
+extern "C" void app_main(void) {
     esp_log_level_set("wifi", ESP_LOG_WARN);
     esp_log_level_set("wifi_station_netif", ESP_LOG_WARN);
 #if defined(CONFIG_MICRO_ROS_ESP_NETIF_WLAN) || defined(CONFIG_MICRO_ROS_ESP_NETIF_ENET)

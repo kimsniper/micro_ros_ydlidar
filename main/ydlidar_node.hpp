@@ -30,24 +30,28 @@
  */
 #pragma once
 
-#include <Eigen/Dense>
+#include <rcl/rcl.h>
+#include <rclc/rclc.h>
+#include <sensor_msgs/msg/laser_scan.h>
+#include <vector>
 
-class ImuEKF {
+#include "ydlidar.hpp"
+
+class YdLidarNode {
 public:
-    ImuEKF();
-
-    void setDt(float dt);
-
-    void predict(const Eigen::Vector3f &gyro);
-    void update(const Eigen::Vector3f &accel);
-
-    Eigen::Vector4f getQuaternion() const;
+    void init(rclc_support_t* support, rcl_allocator_t* allocator);
+    void spin();
 
 private:
-    Eigen::VectorXf x;   // state (7x1)
-    Eigen::MatrixXf P;   // covariance (7x7)
+    rcl_publisher_t pub;
+    sensor_msgs__msg__LaserScan msg;
 
-    float dt;
+    YDLIDAR::YDLidar_Driver* lidarDriver = nullptr;
+    
+    // LaserScan arrays definitions
+    std::vector<float> rangesCache;
+    std::vector<float> intensitiesCache;
+    uint16_t totalBins = 720; // 0.5-deg angle bin mapping resolution target
 
-    Eigen::Vector3f gravityModel(const Eigen::Vector4f &q) const;
+    void flushScanMessage();
 };

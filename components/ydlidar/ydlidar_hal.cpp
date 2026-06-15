@@ -28,33 +28,50 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#pragma once
 
-#include <rcl/rcl.h>
-#include <rclc/rclc.h>
-#include <rclc/executor.h>
-#include <sensor_msgs/msg/imu.h>
+#include "ydlidar_hal.hpp"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
-#include <Eigen/Dense>
+namespace YDLIDAR {
 
-#include "imu_ekf.hpp"
-#include "mpu6050.hpp"
+LidarError_t ydlidar_hal_init(const Device* dev) {
+    if (dev == nullptr) return LidarError_t::LIDAR_ERR;
 
-class ImuNode {
-public:
-    void init(rclc_support_t *support, rcl_allocator_t *allocator);
-    void spin();
+    const uart_config_t uart_config = {
+        .baud_rate = static_cast<int>(dev->baudRate),
+        .data_bits = UART_DATA_8_BITS,
+        .parity   = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_DEFAULT,
+    };
 
-private:
-    rcl_publisher_t pub;
-    rclc_executor_t executor;
+    if (uart_driver_install(static_cast<uart_port_t>(dev->uartPort), 1024 * 2, 0, 0, NULL, 0) != ESP_OK) {
+        return LidarError_t::LIDAR_ERR;
+    }
+    if (uart_param_config(static_cast<uart_port_t>(dev->uartPort), &uart_config) != ESP_OK) {
+        return LidarError_t::LIDAR_ERR;
+    }
+    if (uart_set_pin(static_cast<uart_port_t>(dev->uartPort), dev->txPin, dev->rxPin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) {
+        return LidarError_t::LIDAR_ERR;
+    }
 
-    sensor_msgs__msg__Imu msg;
+    return LidarError_t::LIDAR_OK;
+}
 
-    ImuEKF ekf;
+LidarError_t ydlidar_hal_read_byte(uint8_t uartPort, uint8_t* byteBuffer, uint32_t timeoutMs) {
+    if (byteBuffer == nullptr) return LidarError_t::LIDAR_ERR;
 
-    MPU6050::MPU6050_Driver *mpu;
-    Eigen::Vector3f gyroBias;
+    int len = uart_read_bytes(static_cast<uart_port_t>(uartPort), byteBuffer, 1, pdMS_TO_TICKS(timeoutMs));
+    if (len <= 0) {
+        return LidarError_t::LIDAR_ERR_TIMEOUT;
+    }
+    return LidarError_t::LIDAR_OK;
+}
 
-    void calibrate();
-};
+void ydlidar_hal_ms_delay(uint32_t ms) {
+    vTaskDelay(pdMS_TO_TICKS(ms));
+}
+
+} // namespace YDLIDAR
