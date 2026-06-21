@@ -32,8 +32,14 @@
 #include <cstring>
 #include <ctime>
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #define TAG "ydlidar_node"
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
 
 static YDLIDAR::Device TargetLidarDevice = {
     .uartPort = 1,
@@ -63,14 +69,19 @@ void YdLidarNode::init(rclc_support_t* support, rcl_allocator_t* allocator) {
     intensitiesCache.resize(totalBins, 0.0f);
 
     std::memset(&msg, 0, sizeof(msg));
-    msg.header.frame_id.data = (char*)"laser_frame";
-    msg.header.frame_id.size = std::strlen("laser_frame");
-    msg.header.frame_id.capacity = msg.header.frame_id.size + 1;
+
+    static const char frame[] = "laser_frame";
+    msg.header.frame_id.data = const_cast<char*>(frame);
+    msg.header.frame_id.size = strlen(frame);
+    msg.header.frame_id.capacity = sizeof(frame);
 
     lidarDriver = new YDLIDAR::YDLidar_Driver(TargetLidarDevice, TargetLidarConfig);
     if (lidarDriver->Init() != YDLIDAR::LidarError_t::LIDAR_OK) {
-        ESP_LOGE(TAG, "Failed to build UART serial connection to YDLidar hardware peripheral map target pipeline.");
+        ESP_LOGE(TAG, "Failed to initialize YDLidar driver");
     }
+
+    scanReady = false;
+    lastPublishMs = xTaskGetTickCount() * portTICK_PERIOD_MS;
 }
 
 void YdLidarNode::flushScanMessage() {
@@ -81,27 +92,26 @@ void YdLidarNode::flushScanMessage() {
     msg.header.stamp.nanosec = ts.tv_nsec;
 
     msg.angle_min = 0.0f;
-    msg.angle_max = static_cast<float>(2.0 * M_PI);
-    msg.angle_increment = msg.angle_max / static_cast<float>(totalBins);
+    msg.angle_max = 2.0f * M_PI;
+    msg.angle_increment = msg.angle_max / totalBins;
+
     msg.time_increment = 0.0f;
-    msg.scan_time = 0.1f; // Target 10Hz base velocity
+    msg.scan_time = 0.1f;
+
     msg.range_min = 0.15f;
     msg.range_max = 12.0f;
 
     msg.ranges.size = totalBins;
+    msg.ranges.capacity = totalBins;
     msg.ranges.data = rangesCache.data();
 
-    if (TargetLidarConfig.hasIntensity) {
-        msg.intensities.size = totalBins;
-        msg.intensities.data = intensitiesCache.data();
-    } else {
-        msg.intensities.size = 0;
-        msg.intensities.data = nullptr;
-    }
+    msg.intensities.size = TargetLidarConfig.hasIntensity ? totalBins : 0;
+    msg.intensities.capacity = totalBins;
+    msg.intensities.data = TargetLidarConfig.hasIntensity ? intensitiesCache.data() : nullptr;
 
-    rcl_publish(&pub, &msg, NULL);
+    rcl_ret_t rc = rcl_publish(&pub, &msg, NULL);
+    (void)rc;
 
-    // Clear buffer vectors for subsequent sweeping cycles
     std::fill(rangesCache.begin(), rangesCache.end(), 0.0f);
     std::fill(intensitiesCache.begin(), intensitiesCache.end(), 0.0f);
 }
@@ -109,15 +119,21 @@ void YdLidarNode::flushScanMessage() {
 void YdLidarNode::spin() {
     std::vector<YDLIDAR::PointData> pointChunk;
     bool isFullTurnCompleted = false;
+    const uint32_t PUBLISH_PERIOD_MS = 100;
 
     while (true) {
         pointChunk.clear();
-        YDLIDAR::LidarError_t res = lidarDriver->PollScanChunk(pointChunk, isFullTurnCompleted);
+        isFullTurnCompleted = false;
+
+        auto res = lidarDriver->PollScanChunk(pointChunk, isFullTurnCompleted);
 
         if (res == YDLIDAR::LidarError_t::LIDAR_OK && !pointChunk.empty()) {
             for (const auto& pt : pointChunk) {
-                // Determine layout indexes relative to global angle arrays
-                int index = static_cast<int>((pt.angle_rad / (2.0f * M_PI)) * totalBins);
+
+                int index = static_cast<int>(
+                    (pt.angle_rad / (2.0f * M_PI)) * totalBins
+                );
+
                 if (index >= 0 && index < totalBins) {
                     rangesCache[index] = pt.distance_m;
                     if (TargetLidarConfig.hasIntensity) {
@@ -125,12 +141,18 @@ void YdLidarNode::spin() {
                     }
                 }
             }
+
+            scanReady = isFullTurnCompleted;
         }
 
-        if (isFullTurnCompleted) {
+        uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
+
+        if (scanReady && (now - lastPublishMs >= PUBLISH_PERIOD_MS)) {
+            scanReady = false;
+            lastPublishMs = now;
             flushScanMessage();
         }
 
-        vTaskDelay(pdMS_TO_TICKS(1)); // Context-switching optimization gap
+        vTaskDelay(pdMS_TO_TICKS(2));
     }
 }

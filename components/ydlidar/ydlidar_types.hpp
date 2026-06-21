@@ -61,5 +61,3 @@ struct Config {
 };
 
 } // namespace YDLIDAR
-
-#endif

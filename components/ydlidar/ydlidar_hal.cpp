@@ -36,37 +36,43 @@
 namespace YDLIDAR {
 
 LidarError_t ydlidar_hal_init(const Device* dev) {
-    if (dev == nullptr) return LidarError_t::LIDAR_ERR;
+    if (!dev) return LidarError_t::LIDAR_ERR;
 
-    const uart_config_t uart_config = {
-        .baud_rate = static_cast<int>(dev->baudRate),
-        .data_bits = UART_DATA_8_BITS,
-        .parity   = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-        .source_clk = UART_SCLK_DEFAULT,
-    };
+    uart_config_t uart_config = {};
+    uart_config.baud_rate = dev->baudRate;
+    uart_config.data_bits = UART_DATA_8_BITS;
+    uart_config.parity = UART_PARITY_DISABLE;
+    uart_config.stop_bits = UART_STOP_BITS_1;
+    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+    uart_config.source_clk = UART_SCLK_DEFAULT;
 
-    if (uart_driver_install(static_cast<uart_port_t>(dev->uartPort), 1024 * 2, 0, 0, NULL, 0) != ESP_OK) {
+    if (uart_driver_install((uart_port_t)dev->uartPort, 2048, 0, 0, nullptr, 0) != ESP_OK)
         return LidarError_t::LIDAR_ERR;
-    }
-    if (uart_param_config(static_cast<uart_port_t>(dev->uartPort), &uart_config) != ESP_OK) {
+
+    if (uart_param_config((uart_port_t)dev->uartPort, &uart_config) != ESP_OK)
         return LidarError_t::LIDAR_ERR;
-    }
-    if (uart_set_pin(static_cast<uart_port_t>(dev->uartPort), dev->txPin, dev->rxPin, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) {
+
+    if (uart_set_pin((uart_port_t)dev->uartPort,
+                     dev->txPin,
+                     dev->rxPin,
+                     UART_PIN_NO_CHANGE,
+                     UART_PIN_NO_CHANGE) != ESP_OK)
         return LidarError_t::LIDAR_ERR;
-    }
 
     return LidarError_t::LIDAR_OK;
 }
 
 LidarError_t ydlidar_hal_read_byte(uint8_t uartPort, uint8_t* byteBuffer, uint32_t timeoutMs) {
-    if (byteBuffer == nullptr) return LidarError_t::LIDAR_ERR;
+    if (!byteBuffer) return LidarError_t::LIDAR_ERR;
 
-    int len = uart_read_bytes(static_cast<uart_port_t>(uartPort), byteBuffer, 1, pdMS_TO_TICKS(timeoutMs));
-    if (len <= 0) {
+    int len = uart_read_bytes((uart_port_t)uartPort,
+                              byteBuffer,
+                              1,
+                              pdMS_TO_TICKS(timeoutMs));
+
+    if (len <= 0)
         return LidarError_t::LIDAR_ERR_TIMEOUT;
-    }
+
     return LidarError_t::LIDAR_OK;
 }
 

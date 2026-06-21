@@ -47,11 +47,14 @@ private:
     sensor_msgs__msg__LaserScan msg;
 
     YDLIDAR::YDLidar_Driver* lidarDriver = nullptr;
-    
-    // LaserScan arrays definitions
+
     std::vector<float> rangesCache;
     std::vector<float> intensitiesCache;
-    uint16_t totalBins = 720; // 0.5-deg angle bin mapping resolution target
+
+    uint16_t totalBins = 720;
+
+    bool scanReady = false;
+    uint32_t lastPublishMs = 0;
 
     void flushScanMessage();
 };

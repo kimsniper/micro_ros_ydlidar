@@ -39,14 +39,10 @@ extern "C" {
 #include "esp_err.h"
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace YDLIDAR {
 
-YDLIDAR::LidarError_t ydlidar_hal_init(const YDLIDAR::Device* dev);
-YDLIDAR::LidarError_t ydlidar_hal_read_byte(uint8_t uartPort, uint8_t* byteBuffer, uint32_t timeoutMs);
+LidarError_t ydlidar_hal_init(const Device* dev);
+LidarError_t ydlidar_hal_read_byte(uint8_t uartPort, uint8_t* byteBuffer, uint32_t timeoutMs);
 void ydlidar_hal_ms_delay(uint32_t ms);
 
-#ifdef __cplusplus
-}
-#endif
+} // namespace YDLIDAR
